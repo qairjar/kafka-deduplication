@@ -1,66 +1,65 @@
 package kafkadeduplication
 
 import (
-	"github.com/Shopify/sarama"
+	"encoding/json"
 	"github.com/artyomturkin/go-from-uri/kafka"
 	"github.com/artyomturkin/saramahelper"
+	"reflect"
 	"time"
 )
-
-type CacheBuilder struct {
-	From       time.Time
-	To         time.Time
-	WindowSize time.Time
-	Lag        time.Duration
-	InitFrom   time.Time
-	Delay      time.Duration
-	Messages   []*sarama.ConsumerMessage
-}
 
 type SaramaConfig struct {
 	Brokers   string
 	TopicName string
 	Size      int
+	Msgs      []map[string]interface{}
 }
 
-func (c *CacheBuilder) ArgsBuilder() {
-	srmCnf := &SaramaConfig{
-		Brokers:   "kafka://localhost:9092",
-		TopicName: "test",
-		Size:      5,
-	}
-	sc, err := kafka.NewSaramaClient(srmCnf.Brokers)
+func (s *SaramaConfig) CacheBuilder() error {
+	sc, err := kafka.NewSaramaClient(s.Brokers)
 	if err != nil {
-		panic(err)
+		return err
+	}
+	msgCh, errs := saramahelper.Fetch(sc, s.TopicName, s.Size)
+
+	for err := range errs {
+		if err != nil {
+			return err
+		}
 	}
 
-	msgCh, errch := saramahelper.Fetch(sc, srmCnf.TopicName, srmCnf.Size)
-
-	var errs []error
-	for err := range errch {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return
-	}
-
-	var fromTime time.Time
+	var msgs []map[string]interface{}
 	for m := range msgCh {
-		c.Messages = append(c.Messages, m)
-		if fromTime.Unix() < m.Timestamp.Unix() {
-			fromTime = m.Timestamp
+		var msg map[string]interface{}
+		err := json.Unmarshal(m.Value, &msg)
+		if err != nil {
+			return err
+		}
+		msgs = append(msgs, msg)
+	}
+	s.Msgs = msgs
+	return nil
+}
+
+func (s *SaramaConfig) GetLastTimestamp() (error, time.Time) {
+
+	var t time.Time
+	for _, msg := range s.Msgs {
+		if value, ok := msg["current_ts"].(time.Time); ok {
+			if value.Unix() > t.Unix() {
+				t = value
+			}
 		}
 	}
+	return nil, t
+}
 
-	if len(c.Messages) > 0 {
-		c.From = fromTime
-		c.To = time.Now()
-	} else if c.From.IsZero() && c.To.IsZero() {
-		if !c.InitFrom.IsZero() {
-			c.From = c.InitFrom
+func (s *SaramaConfig) EqualMsg(msg map[string]interface{}) bool {
+	for _, m := range s.Msgs {
+		eq := reflect.DeepEqual(msg, m)
+		if eq {
+			return eq
 		}
-		c.To = time.Now()
 	}
-
+	return false
 }
