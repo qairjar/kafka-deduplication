@@ -17,6 +17,7 @@ type SaramaConfig struct {
 
 type Cache struct {
 	Msgs []map[string]interface{}
+	Count int
 }
 
 func (m *Cache) CacheBuilder(s *SaramaConfig) error {
@@ -40,6 +41,7 @@ func (m *Cache) CacheBuilder(s *SaramaConfig) error {
 		}
 		msgs = append(msgs, msg)
 	}
+	m.Count = len(msgs)
 	m.Msgs = msgs
 	return nil
 }
@@ -65,8 +67,4 @@ func (c *Cache) EqualMsg(msg map[string]interface{}) bool {
 		}
 	}
 	return false
-}
-
-func (c *Cache) GetCount() int{
-	return len(c.Msgs)
 }
