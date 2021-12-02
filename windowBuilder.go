@@ -66,3 +66,7 @@ func (c *Cache) EqualMsg(msg map[string]interface{}) bool {
 	}
 	return false
 }
+
+func (c *Cache) GetCount() int{
+	return len(c.Msgs)
+}
