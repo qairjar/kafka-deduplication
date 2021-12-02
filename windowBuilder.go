@@ -12,10 +12,14 @@ type SaramaConfig struct {
 	Brokers   string
 	TopicName string
 	Size      int
-	Msgs      []map[string]interface{}
 }
 
-func (s *SaramaConfig) CacheBuilder() error {
+
+type Cache struct {
+	Msgs []map[string]interface{}
+}
+
+func (m *Cache) CacheBuilder(s *SaramaConfig) error {
 	sc, err := kafka.NewSaramaClient(s.Brokers)
 	if err != nil {
 		return err
@@ -27,7 +31,6 @@ func (s *SaramaConfig) CacheBuilder() error {
 			return err
 		}
 	}
-
 	var msgs []map[string]interface{}
 	for m := range msgCh {
 		var msg map[string]interface{}
@@ -37,14 +40,14 @@ func (s *SaramaConfig) CacheBuilder() error {
 		}
 		msgs = append(msgs, msg)
 	}
-	s.Msgs = msgs
+	m.Msgs = msgs
 	return nil
 }
 
-func (s *SaramaConfig) GetLastTimestamp() (error, time.Time) {
+func (c *Cache) GetLastTimestamp() (error, time.Time) {
 
 	var t time.Time
-	for _, msg := range s.Msgs {
+	for _, msg := range c.Msgs {
 		if value, ok := msg["current_ts"].(time.Time); ok {
 			if value.Unix() > t.Unix() {
 				t = value
@@ -54,8 +57,8 @@ func (s *SaramaConfig) GetLastTimestamp() (error, time.Time) {
 	return nil, t
 }
 
-func (s *SaramaConfig) EqualMsg(msg map[string]interface{}) bool {
-	for _, m := range s.Msgs {
+func (c *Cache) EqualMsg(msg map[string]interface{}) bool {
+	for _, m := range c.Msgs {
 		eq := reflect.DeepEqual(msg, m)
 		if eq {
 			return eq
