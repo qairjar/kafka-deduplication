@@ -2,9 +2,9 @@ package kafkadeduplication
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/artyomturkin/go-from-uri/kafka"
 	"github.com/artyomturkin/saramahelper"
-	"reflect"
 	"time"
 )
 
@@ -27,11 +27,6 @@ func (m *Cache) CacheBuilder(s *SaramaConfig) error {
 	}
 	msgCh, errs := saramahelper.Fetch(sc, s.TopicName, s.Size)
 
-	for err := range errs {
-		if err != nil {
-			return err
-		}
-	}
 	var msgs []map[string]interface{}
 	for m := range msgCh {
 		var msg map[string]interface{}
@@ -43,6 +38,13 @@ func (m *Cache) CacheBuilder(s *SaramaConfig) error {
 	}
 	m.Count = len(msgs)
 	m.Msgs = msgs
+
+	for err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -61,9 +63,23 @@ func (c *Cache) GetLastTimestamp() (error, time.Time) {
 
 func (c *Cache) EqualMsg(msg map[string]interface{}) bool {
 	for _, m := range c.Msgs {
-		eq := reflect.DeepEqual(msg, m)
-		if eq {
-			return eq
+		result := true
+		for key, item := range m {
+			if value, ok := msg[key]; ok {
+				if t, ok := value.(time.Time); ok {
+					ts := t.Format(time.RFC3339Nano)
+					if fmt.Sprint(item) != ts {
+						result = false
+					}
+				}else{
+					if fmt.Sprint(item) != fmt.Sprint(value) {
+						result = false
+					}
+				}
+			}
+		}
+		if result {
+			return true
 		}
 	}
 	return false
